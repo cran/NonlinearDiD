@@ -1,0 +1,221 @@
+---
+title: "Functional Form Sensitivity in Nonlinear DiD"
+author: "NonlinearDiD Package"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{Functional Form Sensitivity in Nonlinear DiD}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#>",
+  fig.width = 7, fig.height = 4, warning = FALSE, message = FALSE
+)
+library(NonlinearDiD)
+library(ggplot2)
+set.seed(101)
+```
+
+# Overview
+
+This vignette explores the **functional form sensitivity** problem in
+difference-in-differences with binary outcomes, following
+Roth & Sant'Anna (2023).
+
+## The Core Issue
+
+Suppose two groups have baseline outcome probabilities:
+
+- Control: P(Y = 1) = 0.30
+- Treated: P(Y = 1) = 0.25
+
+Both groups experience the same *additive* increase in probability: +0.10.
+
+**On the probability scale**: The change is 0.10 for both — parallel trends holds.
+
+**On the logit scale**:
+- Control: logit(0.40) - logit(0.30) = `r round(qlogis(0.40) - qlogis(0.30), 3)`
+- Treated: logit(0.35) - logit(0.25) = `r round(qlogis(0.35) - qlogis(0.25), 3)`
+
+These are **not equal**! A researcher testing parallel trends on the log-odds
+scale would (correctly) reject — even though the underlying time trend is
+identical for both groups on the probability scale.
+
+```{r demo_scale}
+# Demonstrate scale sensitivity
+p_ctrl_pre  <- 0.30; p_ctrl_post <- 0.40
+p_treat_pre <- 0.25; p_treat_post <- 0.35
+
+cat("=== Probability Scale ===\n")
+cat("Control change:  ", round(p_ctrl_post  - p_ctrl_pre, 4),  "\n")
+cat("Treated change:  ", round(p_treat_post - p_treat_pre, 4), "\n")
+cat("DiD (prob):      ", round((p_treat_post - p_treat_pre) - (p_ctrl_post - p_ctrl_pre), 4), "\n\n")
+
+cat("=== Log-Odds (Logit) Scale ===\n")
+cat("Control change:  ", round(qlogis(p_ctrl_post)  - qlogis(p_ctrl_pre), 4),  "\n")
+cat("Treated change:  ", round(qlogis(p_treat_post) - qlogis(p_treat_pre), 4), "\n")
+cat("DiD (logit):     ", round((qlogis(p_treat_post) - qlogis(p_treat_pre)) -
+                               (qlogis(p_ctrl_post) - qlogis(p_ctrl_pre)), 4), "\n\n")
+
+cat("=== Probit Scale ===\n")
+cat("Control change:  ", round(qnorm(p_ctrl_post)  - qnorm(p_ctrl_pre), 4),  "\n")
+cat("Treated change:  ", round(qnorm(p_treat_post) - qnorm(p_treat_pre), 4), "\n")
+cat("DiD (probit):    ", round((qnorm(p_treat_post) - qnorm(p_treat_pre)) -
+                               (qnorm(p_ctrl_post) - qnorm(p_ctrl_pre)), 4), "\n")
+```
+
+**Key takeaway**: The same underlying DGP yields *different* DiD estimates
+and *different* pre-trends test results depending on the scale chosen. There
+is no uniquely correct scale — the right scale is determined by the DGP.
+
+---
+
+# When Does Scale Choice Matter?
+
+Scale sensitivity is most severe when:
+
+1. **Baseline probabilities are far from 0.5** (where logit and probit curves
+   are most nonlinear)
+2. **Groups have different baseline rates** (asymmetric baseline)
+3. **Treatment effects are large** (more curvature in the relevant region)
+
+```{r severity}
+# Show severity across baseline probability values
+baseline_probs <- seq(0.05, 0.45, by = 0.05)
+delta_p        <- 0.10  # same additive change for both groups
+
+severity_df <- do.call(rbind, lapply(baseline_probs, function(p0) {
+  p1 <- p0 + delta_p
+  # Parallel in prob => same change
+  # Logit DiD if treated has different baseline (p0 - 0.05)
+  p0_treat <- max(p0 - 0.05, 0.02)
+  p1_treat <- p0_treat + delta_p
+
+  logit_did <- (qlogis(p1_treat) - qlogis(p0_treat)) -
+               (qlogis(p1)       - qlogis(p0))
+
+  data.frame(
+    baseline_ctrl  = p0,
+    baseline_treat = p0_treat,
+    logit_did      = logit_did
+  )
+}))
+
+cat("Logit-scale DiD when true probability DiD = 0:\n")
+print(severity_df, digits = 3, row.names = FALSE)
+cat("\nLarger deviations at low baseline probabilities.\n")
+```
+
+---
+
+# Simulation: Linear vs. Logit DiD
+
+We now simulate data where parallel trends holds on the **logit scale**
+(the correct scale for the DGP), and compare estimates from:
+1. Linear DiD (standard CS2021)
+2. Logit DiD (NonlinearDiD)
+
+```{r simulation}
+# DGP: parallel trends on logit scale
+dat <- sim_binary_panel(
+  n            = 1000,
+  nperiods     = 8,
+  prop_treated = 0.5,
+  n_cohorts    = 3,
+  true_att     = c(0.20, 0.35, 0.25),
+  base_prob    = 0.20,   # low baseline: nonlinearity matters most
+  unit_fe_sd   = 0.5,
+  seed         = 42
+)
+
+cat("Baseline outcome rate (untreated, pre-period):",
+    round(mean(dat$y[dat$D == 0 & dat$period == 1]), 3), "\n")
+cat("True ATTs (avg):", round(mean(c(0.20, 0.35, 0.25)), 3), "\n\n")
+```
+
+```{r fit_both}
+# Logit DiD
+res_logit <- nonlinear_attgt(
+  dat, "y", "period", "id", "g",
+  outcome_model = "logit",
+  control_group = "nevertreated"
+)
+
+# Linear DiD
+res_linear <- nonlinear_attgt(
+  dat, "y", "period", "id", "g",
+  outcome_model = "linear",
+  control_group = "nevertreated"
+)
+
+# Aggregate
+agg_logit  <- nonlinear_aggte(res_logit,  type = "dynamic")
+agg_linear <- nonlinear_aggte(res_linear, type = "dynamic")
+
+cat("=== Overall ATT ===\n")
+cat("Linear DiD: ", round(agg_linear$overall_att, 4), "\n")
+cat("Logit DiD:  ", round(agg_logit$overall_att,  4), "\n")
+cat("True ATT:   ", round(mean(c(0.20, 0.35, 0.25)), 4), "\n")
+```
+
+---
+
+# Pre-Trends Sensitivity
+
+A critical practical insight: even if the **true DGP** has no pre-treatment
+differences (i.e., the identifying assumption holds on some scale), a
+pre-trends test on the wrong scale may falsely reject.
+
+```{r pretrends_both}
+# Test on logit scale
+pt_logit <- nonlinear_pretest(res_logit, plot = FALSE)
+cat("Pre-trends test (logit scale):\n")
+cat("  Joint p-value:", round(pt_logit$joint_pval, 4), "\n\n")
+
+# Test on linear scale
+pt_linear <- nonlinear_pretest(res_linear, plot = FALSE)
+cat("Pre-trends test (linear scale):\n")
+cat("  Joint p-value:", round(pt_linear$joint_pval, 4), "\n\n")
+
+cat("Note: If true DGP is logit-scale parallel trends, the linear-scale\n")
+cat("pre-trends test may spuriously reject due to functional form.\n")
+```
+
+---
+
+# Recommendations
+
+Based on Roth & Sant'Anna (2023) and the evidence above:
+
+1. **Think about your DGP first.** If your outcome is binary with moderate
+   baseline rates (15–85%), use a nonlinear model.
+
+2. **Report the scale of your parallel trends assumption.** "We assume
+   parallel trends in log-odds" is a substantively different claim from
+   "parallel trends in probabilities."
+
+3. **Use doubly-robust estimation** (`doubly_robust = TRUE`) which is
+   consistent under misspecification of either the outcome model or
+   the propensity score model.
+
+4. **Consider the odds-ratio DiD** for binary outcomes when you want an
+   estimate that does not depend on the reference group or period.
+
+5. **Use `nonlinear_bounds()`** to report the range of ATTs consistent
+   with the data under minimal assumptions.
+
+---
+
+# References
+
+Roth, J., & Sant'Anna, P. H. C. (2023). When is parallel trends sensitive
+to functional form? *Econometrica*, 91(2), 737-747.
+
+Wooldridge, J. M. (2023). Simple approaches to nonlinear
+difference-in-differences with panel data. *The Econometrics Journal*, 26(3).

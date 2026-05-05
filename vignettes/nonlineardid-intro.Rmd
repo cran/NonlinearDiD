@@ -1,0 +1,354 @@
+---
+title: "Staggered DiD with Nonlinear Outcomes: Methods and Usage"
+author: "NonlinearDiD Package"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Staggered DiD with Nonlinear Outcomes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width  = 7,
+  fig.height = 4.5,
+  warning    = FALSE,
+  message    = FALSE
+)
+library(NonlinearDiD)
+library(ggplot2)
+set.seed(42)
+```
+
+# Introduction
+
+The **NonlinearDiD** package implements difference-in-differences estimators for
+staggered treatment adoption with **binary, count, and other nonlinear outcomes**.
+
+## Why Nonlinear Outcomes Require Special Methods
+
+The landmark Callaway & Sant'Anna (2021) framework assumes that parallel trends
+holds on the **probability scale**:
+
+$$E[Y_{it}(0) - Y_{it-1}(0) \mid G = g] = E[Y_{it}(0) - Y_{it-1}(0) \mid G = \infty]$$
+
+For continuous outcomes (wages, test scores), this is natural. But for binary
+outcomes (employment, hospitalization, default), parallel trends in probabilities
+implies **parallel trends in log-odds** only under a very specific functional
+form restriction.
+
+Roth & Sant'Anna (2023) show this creates two distinct problems:
+
+1. **Sensitivity to functional form**: Whether pre-treatment trends appear
+   parallel depends entirely on which scale you test.
+
+2. **Treatment effect heterogeneity conflation**: In nonlinear models, the
+   "treatment effect" includes both the true effect and Jensen's inequality
+   adjustments.
+
+This package addresses both problems.
+
+---
+
+# Installation
+
+```r
+# From CRAN (forthcoming)
+install.packages("NonlinearDiD")
+
+# Development version from GitHub
+remotes::install_github("example/NonlinearDiD")
+```
+
+---
+
+# Binary Outcomes: Staggered DiD
+
+## Simulating Data
+
+```{r simulate}
+dat <- sim_binary_panel(
+  n            = 800,
+  nperiods     = 8,
+  prop_treated = 0.6,
+  n_cohorts    = 3,
+  true_att     = c(0.15, 0.25, 0.20),  # heterogeneous treatment effects
+  base_prob    = 0.3,
+  seed         = 42
+)
+
+head(dat)
+cat("Treatment cohorts:", table(dat$g[dat$period == 1]), "\n")
+cat("Baseline outcome rate:", round(mean(dat$y[dat$D == 0]), 3), "\n")
+```
+
+## Estimating ATT(g,t) with Logit Model
+
+```{r attgt}
+res <- nonlinear_attgt(
+  data          = dat,
+  yname         = "y",
+  tname         = "period",
+  idname        = "id",
+  gname         = "g",
+  xformla       = ~ x1 + x2,
+  outcome_model = "logit",
+  estimand      = "att",
+  control_group = "nevertreated",
+  doubly_robust = TRUE
+)
+
+summary(res)
+```
+
+The `nonlinear_attgt()` function estimates a separate ATT for each
+(group, time) pair. The key difference from the linear case: we model the
+**change in log-odds** for control units as the counterfactual, not the
+change in probability.
+
+## Event-Study Aggregation
+
+```{r eventstudy, fig.cap="Event-study plot for binary outcome DiD"}
+agg_dynamic <- nonlinear_aggte(res, type = "dynamic")
+print(agg_dynamic)
+plot(agg_dynamic)
+```
+
+## Group-Level ATT
+
+```{r groupatt}
+agg_group <- nonlinear_aggte(res, type = "group")
+print(agg_group)
+```
+
+The group-level ATT tells us: cohort 4 experienced the largest treatment effect
+(they adopted treatment earlier, when baseline rates were lower).
+
+## Pre-Trends Test
+
+```{r pretest}
+pt <- nonlinear_pretest(res, plot = FALSE)
+print(pt)
+```
+
+The pre-trends test examines whether ATT(g,t) = 0 for all pre-treatment
+periods. **Critical caveat**: A failure to reject pre-trends does NOT validate
+parallel trends — it only fails to find evidence against it. For binary
+outcomes, the test is conducted on the same scale as the estimator.
+
+---
+
+# Odds-Ratio DiD
+
+For some binary outcome applications, the **odds-ratio DiD** is preferable
+because:
+- It is invariant to the choice of reference group
+- It does not require parallel trends in probabilities (only in log-odds)
+- It has a natural multiplicative interpretation
+
+```{r ordata}
+# Use simple 2-period case for clarity
+dat2 <- dat[dat$period %in% c(3, 5), ]
+
+res_or <- odds_ratio_did(
+  data           = dat2,
+  yname          = "y",
+  tname          = "period",
+  idname         = "id",
+  treat_period   = 5,
+  control_period = 3,
+  gname          = "g"
+)
+
+print(res_or)
+```
+
+An OR-DiD of 1 means no treatment effect. Values > 1 indicate the treatment
+increased the odds of Y = 1.
+
+---
+
+# Count Outcomes: Poisson DiD
+
+For count outcomes (patents, hospital visits, crimes), we assume parallel
+trends on the **log scale** (multiplicative parallel trends):
+
+$$\frac{E[Y_{it}(0)]}{E[Y_{it-1}(0)]} = \frac{E[Y_{jt}(0)]}{E[Y_{jt-1}(0)]}$$
+
+```{r countdata}
+count_dat <- sim_count_panel(
+  n            = 600,
+  nperiods     = 6,
+  prop_treated = 0.5,
+  true_rr      = c(1.5, 2.0, 1.3),  # rate ratios per cohort
+  base_rate    = 10,
+  seed         = 7
+)
+
+summary(count_dat$y)
+```
+
+```{r countdid}
+# Staggered Poisson DiD
+res_count <- nonlinear_attgt(
+  data          = count_dat,
+  yname         = "y",
+  tname         = "period",
+  idname        = "id",
+  gname         = "g",
+  outcome_model = "poisson",
+  estimand      = "att",
+  control_group = "nevertreated"
+)
+
+agg_count <- nonlinear_aggte(res_count, type = "dynamic")
+plot(agg_count)
+```
+
+```{r pois2x2}
+# Simple 2x2 Poisson DiD (Wooldridge QMLE)
+count_sub <- count_dat[count_dat$period %in% c(2, 4), ]
+res_pois  <- count_did_poisson(
+  count_sub,
+  yname          = "y",
+  tname          = "period",
+  idname         = "id",
+  treat_period   = 4,
+  control_period = 2,
+  gname          = "g"
+)
+print(res_pois)
+```
+
+---
+
+# Doubly-Robust Estimation
+
+The doubly-robust estimator combines an outcome model with a propensity
+score model. It is consistent if **either** (but not necessarily both)
+is correctly specified.
+
+```{r drlogit}
+res_dr <- binary_did_dr(
+  data           = dat[dat$period %in% c(3, 5), ],
+  yname          = "y",
+  tname          = "period",
+  idname         = "id",
+  treat_period   = 5,
+  control_period = 3,
+  gname          = "g",
+  xformla        = ~ x1 + x2,
+  outcome_model  = "logit"
+)
+print(res_dr)
+```
+
+---
+
+# Nonparametric Bounds
+
+When we are uncertain about functional form, we can compute **sharp bounds**
+on the ATT. Under parallel trends alone (with no functional form assumption),
+the ATT for binary outcomes is **point identified**. But under weaker
+assumptions (e.g., only monotone treatment response), we get intervals.
+
+```{r bounds}
+bounds <- nonlinear_bounds(
+  data          = dat,
+  yname         = "y",
+  tname         = "period",
+  idname        = "id",
+  gname         = "g",
+  bound_type    = "manski",  # widest (no assumptions)
+  control_group = "nevertreated"
+)
+
+# Show post-treatment bounds
+post_bounds <- bounds[bounds$post, ]
+head(post_bounds[, c("group", "time", "lb", "ub", "identified")])
+```
+
+---
+
+# Comparison: Linear vs. Nonlinear DiD
+
+A critical question: does it matter? When baseline probabilities are
+far from 0 and 1, the answer is **yes** — the linear DiD can be severely
+biased.
+
+```{r comparison, eval = FALSE}
+# Linear comparison (for illustration)
+res_linear <- nonlinear_attgt(
+  data          = dat,
+  yname         = "y",
+  tname         = "period",
+  idname        = "id",
+  gname         = "g",
+  outcome_model = "linear",
+  estimand      = "att"
+)
+
+agg_lin  <- nonlinear_aggte(res_linear, type = "dynamic")
+agg_logit <- nonlinear_aggte(res, type = "dynamic")
+
+# The two produce different estimates when baseline rates are moderate
+cat("Linear overall ATT:",  round(agg_lin$overall_att, 4), "\n")
+cat("Logit overall ATT:",   round(agg_logit$overall_att, 4), "\n")
+cat("True ATT (avg):    ",  round(mean(c(0.15, 0.25, 0.20)), 4), "\n")
+```
+
+---
+
+# Methodological Details
+
+## Identifying Assumption
+
+For the logit-scale ATT(g,t) estimator, the key identifying assumption is:
+
+**Parallel Trends on the Logit Scale**: For all $t \geq 2$ and all treated
+cohorts $g$:
+
+$$[\text{logit}(E[Y_{it}(0)]) - \text{logit}(E[Y_{it-1}(0)])] \cdot \mathbf{1}_{G_i = g}$$
+$$= [\text{logit}(E[Y_{it}(0)]) - \text{logit}(E[Y_{it-1}(0)])] \cdot \mathbf{1}_{G_i = \infty}$$
+
+This is a **stronger assumption** than CS2021's linear parallel trends when
+treatment effects are heterogeneous (it restricts both the means and the
+full distribution).
+
+## DR Estimator
+
+The doubly-robust estimator for binary outcomes uses the influence function:
+
+$$\hat{\psi}^{DR}_{g,t} = \frac{1}{n} \sum_i \left[
+  \frac{D_i}{\hat{p}} (\Delta Y_i - \hat{\mu}(X_i)) -
+  \frac{(1-D_i)\hat{\pi}(X_i)}{1-\hat{\pi}(X_i)} \cdot \frac{1}{\hat{p}} (\Delta Y_i - \hat{\mu}(X_i))
+\right]$$
+
+where $\Delta Y_i = Y_{it} - Y_{it-1}$, $\hat{\pi}$ is the propensity score,
+and $\hat{\mu}$ is the outcome regression on controls.
+
+---
+
+# References
+
+Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-in-differences with
+multiple time periods. *Journal of Econometrics*, 225(2), 200-230.
+
+Roth, J., & Sant'Anna, P. H. C. (2023). When is parallel trends sensitive to
+functional form? *Econometrica*, 91(2), 737-747.
+
+Wooldridge, J. M. (2023). Simple approaches to nonlinear difference-in-
+differences with panel data. *The Econometrics Journal*, 26(3), 31-66.
+
+Sant'Anna, P. H. C., & Zhao, J. (2020). Doubly robust difference-in-differences
+estimators. *Journal of Econometrics*, 219(1), 101-122.
+
+Manski, C. F. (1990). Nonparametric bounds on treatment effects.
+*American Economic Review*, 80(2), 319-323.

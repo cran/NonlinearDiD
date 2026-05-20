@@ -20,48 +20,51 @@ nonlinear_pretest(
 
 \item{type}{Character. Type of pre-trends test:
 \itemize{
-\item \code{"joint"}: Joint chi-squared test (default)
-\item \code{"individual"}: Individual t-tests per pre-period cell
-\item \code{"honestdid"}: Sensitivity analysis a la Roth-Sant'Anna
+  \item \code{"joint"}: Joint chi-squared test (default)
+  \item \code{"individual"}: Individual t-tests per pre-period cell
+  \item \code{"honestdid"}: Sensitivity analysis a la Roth-Sant'Anna
 }}
 }
 \value{
 A list with:
-\describe{
-\item{pretest_results}{Data frame of pre-period ATT(g,t) with p-values.}
-\item{joint_stat}{Joint test statistic.}
-\item{joint_pval}{P-value for joint test.}
-\item{conclusion}{Interpretive conclusion string.}
-}
+  \describe{
+    \item{pretest_results}{Data frame of pre-period ATT(g,t) with p-values.}
+    \item{joint_stat}{Joint test statistic.}
+    \item{joint_pval}{P-value for joint test.}
+    \item{conclusion}{Interpretive conclusion string.}
+  }
 }
 \description{
 Tests for pre-treatment violations of the parallel trends assumption
 in nonlinear staggered DiD settings. This is fundamentally different
 from the linear case because:
-\enumerate{
-\item \strong{Scale dependence}: Parallel trends on the probability scale does NOT
-imply parallel trends on the latent index scale (and vice versa). Tests
-are performed on the scale specified in \code{outcome_model}.
-\item \strong{Roth-Sant'Anna sensitivity}: Computes sensitivity of post-treatment
-estimates to violations of magnitude delta in pre-period,
-following Roth & Sant'Anna (2023).
-\item \strong{Joint test}: Provides a joint chi-squared test of all pre-period
-ATT(g,t) = 0, accounting for correlation across (g,t) cells.
-}
+
+1. **Scale dependence**: Parallel trends on the probability scale does NOT
+   imply parallel trends on the latent index scale (and vice versa). Tests
+   are performed on the scale specified in `outcome_model`.
+
+2. **Roth-Sant'Anna sensitivity**: Computes sensitivity of post-treatment
+   estimates to violations of magnitude delta in pre-period,
+   following Roth & Sant'Anna (2023).
+
+3. **Joint test**: Provides a joint chi-squared test of all pre-period
+   ATT(g,t) = 0, accounting for correlation across (g,t) cells.
 }
 \examples{
+\donttest{
 set.seed(99)
 dat <- sim_binary_panel(n = 600, nperiods = 8, prop_treated = 0.5)
 res <- nonlinear_attgt(dat, "y", "period", "id", "g",
                         outcome_model = "logit")
 pt  <- nonlinear_pretest(res)
 print(pt)
+}
 
 }
 \references{
 Roth, J. (2022). Pretest with caution: Event-study estimates after testing
-for parallel trends. \emph{American Economic Review: Insights}, 4(3), 305-322.
+for parallel trends. *American Economic Review: Insights*, 4(3), 305-322.
 
 Roth, J., & Sant'Anna, P. H. C. (2023). When is parallel trends sensitive
-to functional form? \emph{Econometrica}, 91(2), 737-747.
+to functional form? *Econometrica*, 91(2), 737-747.
 }

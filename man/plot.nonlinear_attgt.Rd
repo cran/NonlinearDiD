@@ -20,5 +20,5 @@ A \code{ggplot2} object.
 }
 \description{
 Produces a faceted scatter plot of ATT(g,t) estimates with
-confidence intervals, one panel per treatment cohort.
+  confidence intervals, one panel per treatment cohort.
 }

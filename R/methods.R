@@ -18,10 +18,17 @@ print.nonlinear_attgt <- function(x, ...) {
   cat("Outcome model:  ", x$args$outcome_model, "\n")
   cat("Estimand:       ", x$args$estimand, "\n")
   cat("Control group:  ", x$args$control_group, "\n")
+  cat("Data type:      ", x$args$data_type, "\n")
+  if (!is.null(x$args$weightsname)) {
+    cat("Sampling weights:", x$args$weightsname, "\n")
+  }
+  if (!is.null(x$args$cluster_var)) {
+    cat("Clustered on:   ", x$args$cluster_var, "\n")
+  }
   cat("Groups (cohorts):", paste(x$args$glist, collapse = ", "), "\n")
   cat("Time periods:   ", paste(x$args$tlist, collapse = ", "), "\n\n")
 
-  att <- x$attgt
+  att        <- x$attgt
   n_valid    <- sum(!is.na(att$att))
   n_post     <- sum(att$post & !is.na(att$att))
   n_pre      <- n_valid - n_post
@@ -30,7 +37,6 @@ print.nonlinear_attgt <- function(x, ...) {
   cat(sprintf("ATT(g,t) estimates: %d total (%d pre, %d post), %d converged\n\n",
               n_valid, n_pre, n_post, n_converge))
 
-  # Show first few rows
   cols_show <- intersect(c("group", "time", "att", "se", "ci_lo", "ci_hi", "post"),
                          names(att))
   print(utils::head(att[, cols_show, drop = FALSE], 12), digits = 4, row.names = FALSE)
@@ -45,11 +51,13 @@ print.nonlinear_attgt <- function(x, ...) {
 print.nonlinear_aggte <- function(x, ...) {
   cat("\n=== Nonlinear DiD: Aggregated ATT ===\n\n")
   cat("Aggregation type:", x$type, "\n")
-  cat("Outcome model:  ", x$args$outcome_model, "\n\n")
+  cat("Outcome model:  ", x$args$outcome_model, "\n")
+  cat("Data type:      ",
+      if (!is.null(x$args$data_type)) x$args$data_type else "panel", "\n\n")
 
   if (!is.na(x$overall_att)) {
-    z     <- x$overall_att / x$overall_se
-    pval  <- 2 * stats::pnorm(-abs(z))
+    z    <- x$overall_att / x$overall_se
+    pval <- 2 * stats::pnorm(-abs(z))
     cat(sprintf("Overall ATT: %.4f  (SE: %.4f, t = %.3f, p = %.4f)\n",
                 x$overall_att, x$overall_se, z, pval))
     cat(sprintf("95%% CI: [%.4f, %.4f]\n\n",
@@ -76,7 +84,8 @@ summary.nonlinear_attgt <- function(object, ...) {
   cat("\n=== Nonlinear DiD Summary ===\n\n")
   cat("Model:        ", object$args$outcome_model, "\n")
   cat("Estimand:     ", object$args$estimand, "\n")
-  cat("Control group:", object$args$control_group, "\n\n")
+  cat("Control group:", object$args$control_group, "\n")
+  cat("Data type:    ", object$args$data_type, "\n\n")
 
   cat("--- Post-treatment ATT(g,t) ---\n")
   if (nrow(post_df) > 0) {
@@ -135,13 +144,14 @@ plot.nonlinear_attgt <- function(x, ..., alpha = 0.05, point_size = 2) {
 
   att$cohort_label <- paste0("Cohort g = ", att$group)
   att$period_type  <- ifelse(att$post, "Post-treatment", "Pre-treatment")
+  dt_label         <- if (!is.null(x$args$data_type)) x$args$data_type else "panel"
 
   p <- ggplot2::ggplot(att, ggplot2::aes(x = time, y = att, color = period_type)) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
     ggplot2::geom_vline(ggplot2::aes(xintercept = group - 0.5), linetype = "dotted",
                color = "grey40", linewidth = 0.5) +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = ci_lo, ymax = ci_hi), width = 0.2,
-                  alpha = 0.7) +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = ci_lo, ymax = ci_hi),
+                  width = 0.2, alpha = 0.7) +
     ggplot2::geom_point(size = point_size) +
     ggplot2::facet_wrap(~ cohort_label, scales = "free_x") +
     ggplot2::scale_color_manual(
@@ -152,7 +162,8 @@ plot.nonlinear_attgt <- function(x, ..., alpha = 0.05, point_size = 2) {
       title    = paste0("ATT(g,t) Estimates - Nonlinear DiD (",
                         x$args$outcome_model, ")"),
       subtitle = paste0("Estimand: ", x$args$estimand,
-                        " | Control: ", x$args$control_group),
+                        " | Control: ", x$args$control_group,
+                        " | Data: ", dt_label),
       x        = "Calendar Time",
       y        = paste0("ATT [", x$args$estimand, "]"),
       caption  = "Dashed: zero line. Dotted: first treatment period."
@@ -195,7 +206,7 @@ plot.nonlinear_aggte <- function(x, ...) {
     simple   = "Overall ATT"
   )
 
-  xlab_map  <- c(
+  xlab_map <- c(
     dynamic  = "Relative Time to Treatment",
     group    = "Treatment Cohort (g)",
     calendar = "Calendar Time",
@@ -209,18 +220,19 @@ plot.nonlinear_aggte <- function(x, ...) {
     p <- ggplot2::ggplot(agg, ggplot2::aes(x = label, y = att)) +
       ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
       ggplot2::geom_vline(xintercept = -0.5, linetype = "dotted", color = "grey40") +
-      ggplot2::geom_ribbon(ggplot2::aes(ymin = ci_lo, ymax = ci_hi), alpha = 0.15,
-                  fill = "#2166AC") +
+      ggplot2::geom_ribbon(ggplot2::aes(ymin = ci_lo, ymax = ci_hi),
+                  alpha = 0.15, fill = "#2166AC") +
       ggplot2::geom_line(color = "#2166AC", linewidth = 0.8) +
       ggplot2::geom_point(ggplot2::aes(color = post), size = 2.5) +
-      ggplot2::scale_color_manual(values = c("TRUE" = "#2166AC", "FALSE" = "#D73027"),
-                         labels = c("TRUE" = "Post", "FALSE" = "Pre"),
-                         name = "") +
+      ggplot2::scale_color_manual(
+        values = c("TRUE" = "#2166AC", "FALSE" = "#D73027"),
+        labels = c("TRUE" = "Post", "FALSE" = "Pre"),
+        name   = ""
+      ) +
       ggplot2::labs(
         title    = title_map[type],
         subtitle = paste0("Model: ", x$args$outcome_model,
-                          " | Overall ATT = ",
-                          round(x$overall_att, 4)),
+                          " | Overall ATT = ", round(x$overall_att, 4)),
         x        = xlab_map[type],
         y        = "ATT",
         caption  = "Shaded region: 95% pointwise CI. Dotted: event time -0.5."
@@ -231,14 +243,14 @@ plot.nonlinear_aggte <- function(x, ...) {
   } else {
     p <- ggplot2::ggplot(agg, ggplot2::aes(x = factor(label), y = att)) +
       ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-      ggplot2::geom_errorbar(ggplot2::aes(ymin = ci_lo, ymax = ci_hi), width = 0.25,
-                    color = "#2166AC") +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = ci_lo, ymax = ci_hi),
+                    width = 0.25, color = "#2166AC") +
       ggplot2::geom_point(size = 3, color = "#2166AC") +
       ggplot2::labs(
-        title = title_map[type],
+        title    = title_map[type],
         subtitle = paste0("Model: ", x$args$outcome_model),
-        x     = xlab_map[type],
-        y     = "ATT"
+        x        = xlab_map[type],
+        y        = "ATT"
       ) +
       ggplot2::theme_bw() +
       ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"))
@@ -308,6 +320,5 @@ print.odds_ratio_did <- function(x, ...) {
 # Suppress R CMD check NOTEs for ggplot2 NSE column names
 utils::globalVariables(c(
   "label", "att", "ci_lo", "ci_hi", "post",
-  "time", "period_type", "group",
-  "cohort_label"
+  "time", "period_type", "group", "cohort_label"
 ))

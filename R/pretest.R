@@ -42,18 +42,20 @@
 #' to functional form? *Econometrica*, 91(2), 737-747.
 #'
 #' @examples
+#' \donttest{
 #' set.seed(99)
 #' dat <- sim_binary_panel(n = 600, nperiods = 8, prop_treated = 0.5)
 #' res <- nonlinear_attgt(dat, "y", "period", "id", "g",
 #'                         outcome_model = "logit")
 #' pt  <- nonlinear_pretest(res)
 #' print(pt)
+#' }
 #'
 #' @export
 nonlinear_pretest <- function(obj,
-                               plot  = TRUE,
-                               alpha = 0.05,
-                               type  = c("joint", "individual", "honestdid")) {
+                              plot  = TRUE,
+                              alpha = 0.05,
+                              type  = c("joint", "individual", "honestdid")) {
 
   if (!inherits(obj, "nonlinear_attgt")) {
     stop("'obj' must be class 'nonlinear_attgt'.")

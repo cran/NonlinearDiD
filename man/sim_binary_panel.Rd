@@ -38,11 +38,11 @@ Default 0.3.}
 }
 \value{
 A data frame in long format. Columns: \code{id} (unit identifier),
-\code{period} (time period 1 to nperiods), \code{y} (binary outcome 0/1),
-\code{g} (treatment cohort; 0 = never treated), \code{D} (treatment
-indicator), \code{x1} and \code{x2} (covariates, if
-\code{add_covariates = TRUE}), and \code{alpha_i} (true unit fixed effect,
-for validation).
+  \code{period} (time period 1 to nperiods), \code{y} (binary outcome 0/1),
+  \code{g} (treatment cohort; 0 = never treated), \code{D} (treatment
+  indicator), \code{x1} and \code{x2} (covariates, if
+  \code{add_covariates = TRUE}), and \code{alpha_i} (true unit fixed effect,
+  for validation).
 }
 \description{
 Generates a simulated panel dataset with staggered treatment adoption and

@@ -18,13 +18,13 @@ nonlinear_aggte(
 
 \item{type}{Character. The aggregation type:
 \itemize{
-\item \code{"dynamic"}: Event-study / dynamic treatment effects.
-Averages ATT(g,t) across groups g for each relative time e = t - g.
-\item \code{"group"}: Group-specific ATT. Averages over post-treatment
-periods within each treated cohort g.
-\item \code{"calendar"}: Calendar-time ATT. Averages over groups for
-each calendar time t.
-\item \code{"simple"}: Overall average ATT, weighted by cohort size.
+  \item \code{"dynamic"}: Event-study / dynamic treatment effects.
+    Averages ATT(g,t) across groups g for each relative time e = t - g.
+  \item \code{"group"}: Group-specific ATT. Averages over post-treatment
+    periods within each treated cohort g.
+  \item \code{"calendar"}: Calendar-time ATT. Averages over groups for
+    each calendar time t.
+  \item \code{"simple"}: Overall average ATT, weighted by cohort size.
 }}
 
 \item{na.rm}{Logical. Remove NA ATT(g,t) estimates. Default TRUE.}
@@ -34,18 +34,18 @@ required for an aggregated estimate to be reported. Default 1.}
 
 \item{weights}{Character. Weighting scheme for aggregation:
 \itemize{
-\item \code{"equal"}: Equal-weight across (g,t) cells (default).
-\item \code{"sample"}: Weight by treated sample size in each (g,t).
+  \item \code{"equal"}: Equal-weight across (g,t) cells (default).
+  \item \code{"sample"}: Weight by treated sample size in each (g,t).
 }}
 }
 \value{
 An object of class \code{nonlinear_aggte} with slots:
-\describe{
-\item{agg}{Data frame with aggregated ATT, SE, and CI.}
-\item{type}{The aggregation type used.}
-\item{overall_att}{Scalar overall ATT estimate.}
-\item{overall_se}{SE for overall ATT.}
-}
+  \describe{
+    \item{agg}{Data frame with aggregated ATT, SE, and CI.}
+    \item{type}{The aggregation type used.}
+    \item{overall_att}{Scalar overall ATT estimate.}
+    \item{overall_se}{SE for overall ATT.}
+  }
 }
 \description{
 Aggregates the group-time average treatment effects from

@@ -16,5 +16,5 @@ A \code{ggplot2} object.
 }
 \description{
 Plots event-study, group-level, calendar, or overall
-aggregated ATT estimates from \code{\link{nonlinear_aggte}}.
+  aggregated ATT estimates from \code{\link{nonlinear_aggte}}.
 }

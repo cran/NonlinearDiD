@@ -8,11 +8,14 @@ nonlinear_attgt(
   data,
   yname,
   tname,
-  idname,
   gname,
+  idname = NULL,
+  data_type = c("panel", "repeated_cross_section"),
+  weightsname = NULL,
+  cluster_var = NULL,
   xformla = ~1,
   outcome_model = c("logit", "probit", "poisson", "negbin", "linear"),
-  estimand = c("att", "odds_ratio", "ape"),
+  estimand = c("att", "ape", "odds_ratio"),
   control_group = c("nevertreated", "notyetreated"),
   doubly_robust = TRUE,
   boot = FALSE,
@@ -25,121 +28,109 @@ nonlinear_attgt(
 )
 }
 \arguments{
-\item{data}{A data frame in long format (one row per unit-period).}
+\item{data}{A data frame in long format.}
 
-\item{yname}{Character. Name of the outcome variable column.}
+\item{yname}{Character. Outcome variable column.}
 
-\item{tname}{Character. Name of the time period column.}
+\item{tname}{Character. Time period column.}
 
-\item{idname}{Character. Name of the unit identifier column.}
+\item{gname}{Character. Treatment cohort column (the period when a
+unit/group first receives treatment; 0 or Inf for never-treated).}
 
-\item{gname}{Character. Name of the treatment cohort column (the period
-when a unit first receives treatment; 0 or Inf for never-treated units).}
+\item{idname}{Character or \code{NULL}. Unit identifier column.
+Required for \code{data_type = "panel"}. Optional for
+\code{data_type = "repeated_cross_section"}.}
 
-\item{xformla}{A one-sided formula for covariates (e.g., \code{~ x1 + x2}).
-Default is \code{~ 1} (intercept only).}
+\item{data_type}{Character. \code{"panel"} (default) or
+\code{"repeated_cross_section"}.}
 
-\item{outcome_model}{Character. The outcome model to use. One of:
-\itemize{
-\item \code{"logit"}: Logistic regression (for binary Y)
-\item \code{"probit"}: Probit regression (for binary Y)
-\item \code{"poisson"}: Poisson regression (for count Y)
-\item \code{"negbin"}: Negative binomial (for overdispersed count Y)
-\item \code{"linear"}: Linear model (reproduces CS2021 when combined
-with doubly_robust = TRUE)
-}}
+\item{weightsname}{Character or \code{NULL}. Column name of sampling
+weights (e.g. survey design weights). Used in all model fits
+(outcome regression, propensity score, pooled QMLE) when supplied.
+Default \code{NULL} (equal weights).}
 
-\item{estimand}{Character. The treatment effect estimand:
-\itemize{
-\item \code{"att"}: Average treatment effect on the treated (default)
-\item \code{"odds_ratio"}: Odds ratio DiD (binary outcomes only)
-\item \code{"ape"}: Average partial effect on the probability scale
-}}
+\item{cluster_var}{Character or \code{NULL}. Column name to cluster
+standard errors on (e.g. \code{"state"}). Analytical SEs use
+\code{sandwich::vcovCL()} and the bootstrap resamples whole
+clusters. Default \code{NULL} (HC1 robust SEs / row resampling).}
 
-\item{control_group}{Character. Which units serve as the control group:
-\itemize{
-\item \code{"nevertreated"}: Use never-treated units only (default)
-\item \code{"notyetreated"}: Use not-yet-treated units
-}}
+\item{xformla}{A one-sided formula for covariates (e.g. \code{~ x1 + x2}).
+Default \code{~ 1}.}
 
-\item{doubly_robust}{Logical. If TRUE (default), uses the doubly-robust
-estimator that combines propensity score weighting with outcome
-regression. More robust to model misspecification.}
+\item{outcome_model}{Character. One of \code{"logit"}, \code{"probit"},
+\code{"poisson"}, \code{"negbin"}, \code{"linear"}.}
 
-\item{boot}{Logical. If TRUE, uses bootstrap for inference. Default FALSE.}
+\item{estimand}{Character. \code{"att"} (default), \code{"ape"} (average
+partial effect on probability scale), or \code{"odds_ratio"}.}
 
-\item{nboot}{Integer. Number of bootstrap iterations. Default 999.}
+\item{control_group}{Character. \code{"nevertreated"} (default) or
+\code{"notyetreated"}.}
 
-\item{boot_type}{Character. Type of bootstrap: \code{"multiplier"}
-(default, fast) or \code{"empirical"}.}
+\item{doubly_robust}{Logical. Use the doubly-robust estimator. Default TRUE.}
 
-\item{alpha}{Numeric. Significance level for confidence intervals.
-Default 0.05.}
+\item{boot}{Logical. Bootstrap inference. Default FALSE.}
 
-\item{parallel}{Logical. Use parallel processing for bootstrap. Default FALSE.}
+\item{nboot}{Integer. Bootstrap iterations. Default 999.}
 
-\item{pl_cores}{Integer. Number of cores for parallel processing.}
+\item{boot_type}{Character. \code{"multiplier"} or \code{"empirical"}.}
 
-\item{anticipation}{Integer. Number of periods of anticipation allowed.
-Default 0.}
+\item{alpha}{Numeric. Significance level. Default 0.05.}
+
+\item{parallel}{Logical. Parallel bootstrap. Default FALSE.}
+
+\item{pl_cores}{Integer. Cores for parallel bootstrap.}
+
+\item{anticipation}{Integer. Periods of anticipation allowed. Default 0.}
 }
 \value{
-An object of class \code{nonlinear_attgt} containing:
-\describe{
-\item{attgt}{Data frame of ATT(g,t) estimates, standard errors, and
-confidence intervals for each (group, time) pair.}
-\item{call}{The matched call.}
-\item{args}{List of arguments used.}
-\item{boot_draws}{Matrix of bootstrap draws (if boot = TRUE).}
-}
+An object of class \code{nonlinear_attgt}.
 }
 \description{
 Computes group-time average treatment effects on the treated (ATT(g,t)) for
 staggered difference-in-differences designs with nonlinear outcomes.
+Supports both \strong{panel} data (same units across periods) and
+\strong{repeated cross-section} (RCS) data (independent samples per period).
 
-This function extends Callaway & Sant'Anna (2021) to handle binary, count,
-and other nonlinear outcomes where the standard linear parallel trends
-assumption is misspecified. The key methodological contributions are:
-\enumerate{
-\item \strong{Parallel trends on the latent index} (for logit/probit): Instead of
-assuming parallel trends in \eqn{E[Y]}, we assume parallel trends in the
-latent utility \eqn{F^{-1}(E[Y])}.
-\item \strong{Doubly-robust nonlinear estimator}: Combines outcome regression
-(nonlinear model) with propensity score weighting, inheriting DR
-properties in the nonlinear setting.
-\item \strong{Odds-ratio DiD}: A scale-free estimand appropriate for binary
-outcomes that does not require parallel trends in probabilities.
-\item \strong{Nonparametric bounds}: When no functional form is assumed,
-provides sharp bounds on ATT(g,t).
-}
+For panel data the package follows Callaway & Sant'Anna (2021) and uses
+within-unit outcome changes to estimate counterfactual trends. For repeated
+cross-sections it uses the Wooldridge (2023) pooled QMLE with a
+treatment-by-period interaction (non-DR) or an IPW-augmented version
+(doubly-robust). Both modes optionally accept sampling weights and a
+clustering variable.
 }
 \examples{
-# Simulate binary panel data
+# ---- Panel example (v0.1.0 syntax — unchanged) ----
 set.seed(42)
 dat <- sim_binary_panel(n = 500, nperiods = 6, prop_treated = 0.4)
-
-# Estimate ATT(g,t) with logistic outcome model
 result <- nonlinear_attgt(
-  data = dat,
-  yname = "y",
-  tname = "period",
-  idname = "id",
-  gname = "g",
-  outcome_model = "logit",
-  control_group = "nevertreated"
+  data = dat, yname = "y", tname = "period",
+  idname = "id", gname = "g",
+  outcome_model = "logit"
 )
-
 summary(result)
-plot(result)
+
+# ---- Repeated cross-section example ----
+set.seed(7)
+rcs <- sim_binary_rcs(n_per_period = 400, nperiods = 6, prop_treated = 0.4)
+res_rcs <- nonlinear_attgt(
+  data = rcs, yname = "y", tname = "period", gname = "g",
+  outcome_model = "logit",
+  data_type = "repeated_cross_section"
+)
+summary(res_rcs)
 
 }
 \references{
-Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-in-differences
-with multiple time periods. \emph{Journal of Econometrics}, 225(2), 200-230.
+Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-in-differences with
+multiple time periods. \emph{Journal of Econometrics}, 225(2), 200-230.
 
 Wooldridge, J. M. (2023). Simple approaches to nonlinear
 difference-in-differences with panel data. \emph{The Econometrics Journal}, 26(3).
 
 Roth, J., & Sant'Anna, P. H. C. (2023). When is parallel trends sensitive
 to functional form? \emph{Econometrica}, 91(2), 737-747.
+
+Sant'Anna, P. H. C., & Zhao, J. (2020). Doubly robust
+difference-in-differences estimators. \emph{Journal of Econometrics},
+219(1), 101-122.
 }

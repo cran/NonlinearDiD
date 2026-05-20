@@ -21,11 +21,14 @@
   alpha,
   anticipation,
   parallel,
-  pl_cores
+  pl_cores,
+  data_type = "panel",
+  cluster_var = NULL
 )
 }
 \description{
-Internal functions for bootstrap and delta-method
-standard errors in nonlinear staggered DiD.
+Internal functions for bootstrap and delta-method standard
+  errors in nonlinear staggered DiD, for both panel and repeated
+  cross-section designs, with optional clustering and sampling weights.
 }
 \keyword{internal}

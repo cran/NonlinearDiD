@@ -27,24 +27,24 @@ nonlinear_bounds(
 
 \item{gname}{Character. Name of treatment cohort column.}
 
-\item{xformla}{One-sided formula for covariates. Default \code{~ 1}.}
+\item{xformla}{One-sided formula for covariates. Default `~ 1`.}
 
 \item{control_group}{Character. \code{"nevertreated"} (default) or
 \code{"notyetreated"}.}
 
 \item{bound_type}{Character. Type of bound:
 \itemize{
-\item \code{"manski"}: No-assumptions Manski bounds (widest)
-\item \code{"pt_monotone"}: Tighten using parallel trends + monotone
-treatment response
-\item \code{"pt_only"}: Use only parallel trends restriction
+  \item \code{"manski"}: No-assumptions Manski bounds (widest)
+  \item \code{"pt_monotone"}: Tighten using parallel trends + monotone
+    treatment response
+  \item \code{"pt_only"}: Use only parallel trends restriction
 }}
 
 \item{alpha}{Numeric. Significance level for confidence intervals on bounds.}
 }
 \value{
 A data frame of sharp bounds (\code{lb}, \code{ub}) for ATT(g,t),
-with bootstrap confidence intervals.
+  with bootstrap confidence intervals.
 }
 \description{
 Computes sharp nonparametric bounds on the ATT for binary outcomes in
@@ -55,10 +55,8 @@ direction or magnitude of selection.
 
 The key insight for binary outcomes: Since Y is binary (0 or 1), the ATT is
 bounded by:
-\itemize{
-\item Lower bound: counterfactual never exceeds observed (pessimistic)
-\item Upper bound: counterfactual never falls below observed (optimistic)
-}
+  - Lower bound: counterfactual never exceeds observed (pessimistic)
+  - Upper bound: counterfactual never falls below observed (optimistic)
 
 Under a Manski-style no-assumptions bound, plus refinements using
 the parallel trends assumption as a restriction.
@@ -72,8 +70,8 @@ print(bounds)
 }
 \references{
 Manski, C. F. (1990). Nonparametric bounds on treatment effects.
-\emph{American Economic Review}, 80(2), 319-323.
+*American Economic Review*, 80(2), 319-323.
 
 Callaway, B. (2021). Bounds on distributional treatment effect
-parameters. \emph{Journal of Econometrics}, 222(2), 1084-1111.
+parameters. *Journal of Econometrics*, 222(2), 1084-1111.
 }

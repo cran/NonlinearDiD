@@ -5,5 +5,5 @@
 \title{S3 Methods for NonlinearDiD Objects}
 \description{
 Print, summary, and plot methods for \code{nonlinear_attgt}
-and \code{nonlinear_aggte} objects.
+  and \code{nonlinear_aggte} objects.
 }

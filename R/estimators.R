@@ -116,7 +116,7 @@ binary_did_dr <- function(
     stats::glm(ps_formula, data = sub_wide, family = stats::binomial()))
   pscore <- pmin(pmax(stats::predict(ps_fit, type = "response"), 1e-6), 1 - 1e-6)
 
-  att_val <- .dr_att_linear(Y0, Y1, D, pscore, sub_wide, xformla, outcome_model)
+  att_val <- .dr_att_linear(Y0, Y1, D, pscore, rep(1, length(D)), sub_wide, xformla, outcome_model)
 
   DeltaY <- Y1 - Y0
   p_D    <- mean(D)
